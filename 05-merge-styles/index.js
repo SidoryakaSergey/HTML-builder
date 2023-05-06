@@ -1,53 +1,39 @@
 const fs = require('fs');
 const path = require('path');
 
-const sourseDir = path.join(__dirname, 'styles');
-const destinationFile = path.join(__dirname, 'project-dist', 'bundle.css');
+const stylesFolderPath = path.join(__dirname, 'styles');
+const distFolderPath = path.join(__dirname, 'project-dist');
+const outputFile = 'bundle.css';
 
-const filePicker = async sourceDir => {
-  const arrStyles = [];
+async function readFilesFromDirectory(directoryPath) {
+  return await fs.promises.readdir(directoryPath);
+}
+
+async function readFileContents(filePath) {
+  return await fs.promises.readFile(filePath, 'utf-8');
+}
+
+async function writeToFile(filePath, contents) {
+  return await fs.promises.writeFile(filePath, contents);
+}
+
+async function main() {
   try {
-    const files = await fs.promises.readdir(sourceDir);
-    for (const file of files) {
-      const filePath = path.join(sourceDir, file);
-      fs.stat(filePath, (err, stats) => {
-        if (err) {
-          throw err;
-        }
-        if (stats.isFile()) {
-          const ext = path.extname(file).substring(1);
-          if (ext === 'css') {
-            console.log(filePath);
-            const data = readData(filePath);
-            arrStyles.push(data);
-          }
-        }
-      });
-    }
+    const files = await readFilesFromDirectory(stylesFolderPath);
+
+    const cssFiles = files.filter(file => path.extname(file) === '.css');
+
+    const cssContents = await Promise.all(
+      cssFiles.map(file => readFileContents(path.join(stylesFolderPath, file)))
+    );
+
+    const outputPath = path.join(distFolderPath, outputFile);
+    await writeToFile(outputPath, cssContents.join('\n'));
+
+    console.log(`Successfully created ${outputFile} in ${distFolderPath}`);
   } catch (error) {
-    console.error(`Ошибка: ${error.message}`);
+    console.error(error);
   }
-};
+}
 
-const readData = async filename => {
-  try {
-    const data = await fs.promises.readFile(filename, 'utf8');
-    // console.log(data);
-  } catch (error) {
-    console.error(`Ошибка: ${error.message}`);
-  }
-};
-
-const writeData = async data => {
-  try {
-    newData = data.join('\n');
-    await fs.promises.writeFile(destinationFile, newData);
-    console.log('Данные записаны в файл');
-  } catch (error) {
-    console.error(`Ошибка: ${error.message}`);
-  }
-};
-
-const arr = filePicker(sourseDir);
-
-writeData(arr);
+main();
