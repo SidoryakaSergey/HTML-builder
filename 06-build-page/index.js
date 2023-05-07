@@ -71,11 +71,14 @@ async function replaceTemplateTags(templatePath, componentsDir, destDir) {
 
   let result = template;
   for (const componentFile of componentFiles) {
-    const componentName = path.parse(componentFile).name;
-    const componentPath = path.join(componentsDir, componentFile);
-    const component = await fs.readFile(componentPath, 'utf-8');
-    const tag = `{{${componentName}}}`;
-    result = result.replace(tag, component);
+    const ext = path.extname(componentFile);
+    if (ext === '.html') {
+      const componentName = path.parse(componentFile).name;
+      const componentPath = path.join(componentsDir, componentFile);
+      const component = await fs.readFile(componentPath, 'utf-8');
+      const tag = `{{${componentName}}}`;
+      result = result.replace(tag, component);
+    }
   }
 
   const outputPath = path.join(destDir, 'index.html');
