@@ -1,93 +1,22 @@
 const fs = require('fs').promises;
 const path = require('path');
-
-async function deleteDir(dirPath) {
-  try {
-    const files = await fs.readdir(dirPath);
-    for (const file of files) {
-      const filePath = path.join(dirPath, file);
-      const stat = await fs.stat(filePath);
-      if (stat.isDirectory()) {
-        await deleteDir(filePath);
-      } else {
-        await fs.unlink(filePath);
-      }
-    }
-    await fs.rmdir(dirPath);
-  } catch (error) {
-    console.error(`Ошибка при удалении папки ${dirPath}: ${error.message}`);
-    throw error;
-  }
-}
+const projectDir = path.join(__dirname, 'project-dist');
+const templateHTML = path.join(__dirname, 'template.html');
+const componentsDir = path.join(__dirname, 'components');
+const assetsDirProject = path.join(projectDir, 'assets');
+const assetsDir = path.join(__dirname, 'assets');
+const stylesDir = path.join(__dirname, 'styles');
+const styleCSS = path.join(projectDir, 'style.css');
 
 async function copyDir(sourceDir, destDir) {
-  try {
-    await fs.access(destDir);
-    await deleteDir(destDir);
-  } catch (error) {
-    // если папка не существует, то ошибки не будет
-  }
-  await fs.mkdir(destDir);
-
-  const components = {};
-  const styles = [];
-
-  // копируем assets
-  const assetsSourceDir = path.join(sourceDir, 'assets');
-  const assetsDestDir = path.join(destDir, 'assets');
-  await fs.mkdir(assetsDestDir);
-  await copyDirRecursive(assetsSourceDir, assetsDestDir);
-
-  // читаем исходный файл
-  const templateFilePath = path.join(sourceDir, 'template.html');
-  const templateContent = await fs.readFile(templateFilePath, 'utf-8');
-
-  // собираем компоненты и стили
-  const componentsSourceDir = path.join(sourceDir, 'components');
-  const componentsFiles = await fs.readdir(componentsSourceDir);
-  for (const componentFile of componentsFiles) {
-    const componentName = path.parse(componentFile).name;
-    const componentFilePath = path.join(componentsSourceDir, componentFile);
-    const componentContent = await fs.readFile(componentFilePath, 'utf-8');
-    components[componentName] = componentContent;
-  }
-  const stylesSourceDir = path.join(sourceDir, 'styles');
-  const stylesFiles = await fs.readdir(stylesSourceDir);
-  for (const styleFile of stylesFiles) {
-    const styleFilePath = path.join(stylesSourceDir, styleFile);
-    const styleContent = await fs.readFile(styleFilePath, 'utf-8');
-    styles.push(styleContent);
-  }
-
-  // заменяем шаблонные теги на содержимое компонентов
-  let indexHtml = templateContent;
-  for (const componentName in components) {
-    const componentContent = components[componentName];
-    const tag = `{{${componentName}}}`;
-    indexHtml = indexHtml.replace(new RegExp(tag, 'g'), componentContent);
-  }
-
-  // сохраняем index.html
-  const indexHtmlFilePath = path.join(destDir, 'index.html');
-  await fs.writeFile(indexHtmlFilePath, indexHtml);
-
-  // сохраняем стили
-  const stylesFilePath = path.join(destDir, 'style.css');
-  await fs.writeFile(stylesFilePath, styles.join('\n'));
-}
-
-async function copyDirRecursive(sourceDir, destDir) {
-  try {
-    await fs.access(destDir);
-  } catch (error) {
-    await fs.mkdir(destDir);
-  }
-
+  await createDir(destDir);
   const files = await fs.readdir(sourceDir);
+
   for (const file of files) {
     const sourceFilePath = path.join(sourceDir, file);
     const destFilePath = path.join(destDir, file);
     const stat = await fs.stat(sourceFilePath);
+
     if (stat.isDirectory()) {
       await copyDir(sourceFilePath, destFilePath);
     } else {
@@ -95,3 +24,78 @@ async function copyDirRecursive(sourceDir, destDir) {
     }
   }
 }
+
+async function concatStyles(sourceDir, outputFilePath) {
+  const files = await fs.readdir(sourceDir);
+  const cssFiles = files.filter(file => path.extname(file) === '.css');
+
+  let output = '';
+  for (const file of cssFiles) {
+    const filePath = path.join(sourceDir, file);
+    const contents = await fs.readFile(filePath, 'utf-8');
+    output += contents + '\n';
+  }
+  await fs.writeFile(outputFilePath, output);
+}
+
+async function createDir(dir) {
+  try {
+    const destinationDirStats = await fs.stat(dir);
+    if (destinationDirStats.isDirectory()) {
+      await removeDir(dir);
+    }
+  } catch (error) {
+    console.log(`creating ${dir}`);
+  }
+  await fs.mkdir(dir);
+}
+
+async function removeDir(directory) {
+  const files = await fs.readdir(directory);
+
+  for (const file of files) {
+    const filePath = path.join(directory, file);
+    const stats = await fs.stat(filePath);
+    if (stats.isDirectory()) {
+      await removeDir(filePath);
+    } else {
+      await fs.unlink(filePath);
+    }
+  }
+  await fs.rmdir(directory);
+}
+
+async function replaceTemplateTags(templatePath, componentsDir, destDir) {
+  const template = await fs.readFile(templatePath, 'utf-8');
+  const componentFiles = await fs.readdir(componentsDir);
+
+  let result = template;
+  for (const componentFile of componentFiles) {
+    const componentName = path.parse(componentFile).name;
+    const componentPath = path.join(componentsDir, componentFile);
+    const component = await fs.readFile(componentPath, 'utf-8');
+    const tag = `{{${componentName}}}`;
+    result = result.replace(tag, component);
+  }
+
+  const outputPath = path.join(destDir, 'index.html');
+  await fs.writeFile(outputPath, result);
+}
+
+async function buildProject() {
+  try {
+    await createDir(projectDir);
+
+    await replaceTemplateTags(templateHTML, componentsDir, projectDir);
+
+    await concatStyles(stylesDir, styleCSS);
+
+    await copyDir(assetsDir, assetsDirProject);
+
+    console.log('Проект успешно собран!');
+  } catch (error) {
+    console.error('Произошла ошибка при сборке проекта', error);
+  }
+}
+
+buildProject();
