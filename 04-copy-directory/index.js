@@ -1,47 +1,54 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
-const sourseDir = path.join(__dirname, 'files');
-const destinationDir = path.join(__dirname, 'files-copy');
+async function copyDir() {
+  const sourceDir = path.join(__dirname, 'files');
+  const destinationDir = path.join(__dirname, 'files-copy');
 
-const copyFiles = async (sourceDir, destDir) => {
   try {
-    if (fs.existsSync(destDir)) {
-      await deleteFolderRecursive(destDir);
+    const destinationDirStats = await fs.stat(destinationDir);
+    if (destinationDirStats.isDirectory()) {
+      await removeDir(destinationDir);
     }
-    await fs.promises.mkdir(destDir, { recursive: true });
-
-    const files = await fs.promises.readdir(sourceDir);
-    for (const file of files) {
-      const sourcePath = path.join(sourceDir, file);
-      const destPath = path.join(destDir, file);
-
-      const stats = await fs.promises.stat(sourcePath);
-      if (stats.isDirectory()) {
-        await copyFiles(sourcePath, destPath);
-      } else {
-        await fs.promises.copyFile(sourcePath, destPath);
-      }
-    }
-
-    console.log('Все файлы успешно скопированы');
   } catch (error) {
-    console.error(`Ошибка: ${error.message}`);
+    console.log('creating files-copy');
   }
-};
+  await fs.mkdir(destinationDir);
+  const files = await fs.readdir(sourceDir);
 
-const deleteFolderRecursive = async folderPath => {
-  const files = await fs.promises.readdir(folderPath);
   for (const file of files) {
-    const filePath = path.join(folderPath, file);
-    const stats = await fs.promises.stat(filePath);
+    const sourcePath = path.join(sourceDir, file);
+    const destinationPath = path.join(destinationDir, file);
+
+    const stats = await fs.stat(sourcePath);
+
     if (stats.isDirectory()) {
-      await deleteFolderRecursive(filePath);
+      await copyDir(sourcePath, destinationPath);
     } else {
-      await fs.promises.unlink(filePath);
+      await fs.copyFile(sourcePath, destinationPath);
     }
   }
-  await fs.promises.rmdir(folderPath);
-};
+}
 
-copyFiles(sourseDir, destinationDir);
+async function removeDir(directory) {
+  const files = await fs.readdir(directory);
+
+  for (const file of files) {
+    const filePath = path.join(directory, file);
+    const stats = await fs.stat(filePath);
+    if (stats.isDirectory()) {
+      await removeDir(filePath);
+    } else {
+      await fs.unlink(filePath);
+    }
+  }
+  await fs.rmdir(directory);
+}
+
+copyDir()
+  .then(() => {
+    console.log('Копирование завершено');
+  })
+  .catch(error => {
+    console.error('Произошла ошибка при копировании', error);
+  });
