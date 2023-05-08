@@ -20,11 +20,11 @@ stdin.on('data', async input => {
   stdout.write('Введите текст или наберите exit для завершения\n');
 });
 
-stdin.on('SIGINT', function () {
+stdin.on('SIGINT', () => {
   process.emit('SIGINT');
 });
 
-process.on('SIGINT', function () {
+process.on('SIGINT', () => {
   console.log('Удачи в учёбе!');
   process.exit(0);
 });
