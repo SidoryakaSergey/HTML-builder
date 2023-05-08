@@ -20,6 +20,15 @@ stdin.on('data', async input => {
   stdout.write('Введите текст или наберите exit для завершения\n');
 });
 
+stdin.on('SIGINT', function () {
+  process.emit('SIGINT');
+});
+
+process.on('SIGINT', function () {
+  console.log('Удачи в учёбе!');
+  process.exit(0);
+});
+
 fs.access(filePath)
   .catch(() => fs.writeFile(filePath, ''))
   .catch(err => console.error('Произошла ошибка при создании файла:', err));
